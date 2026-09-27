@@ -1,0 +1,11 @@
+build/
+local.properties
+.idea/
+*.iml
+*.apk
+*.idsig
+*.keystore
+*.jks
+*.p12
+*.password
+dist/
