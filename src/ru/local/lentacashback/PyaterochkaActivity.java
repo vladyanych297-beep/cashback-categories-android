@@ -49,6 +49,11 @@ public final class PyaterochkaActivity extends StoreActivity {
         historyPeriod++;
         return historyPeriod < 3;
     }
+    @Override protected String historyPeriodLabel() {
+        String[] names = {"январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"};
+        LocalDate target = LocalDate.now().minusMonths(historyPeriod);
+        return names[target.getMonthValue() - 1] + " — месяц " + (historyPeriod + 1) + " из 3";
+    }
     @Override protected String categoriesUrl() { return "https://5ka.ru/special-offers/"; }
     @Override protected String historyScript() {
         String[] full = {"январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"};

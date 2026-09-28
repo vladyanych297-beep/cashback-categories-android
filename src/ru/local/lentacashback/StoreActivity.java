@@ -61,6 +61,7 @@ abstract class StoreActivity extends Activity {
     protected abstract boolean allowedHost(String host);
     protected void resetHistoryPeriods() {}
     protected boolean advanceHistoryPeriod() { return false; }
+    protected String historyPeriodLabel() { return ""; }
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -145,7 +146,8 @@ abstract class StoreActivity extends Activity {
         targetIndex = -1;
         receiptCount = 0;
         attempts = 0;
-        say("Считываю чеки " + storeName() + "…");
+        String period = historyPeriodLabel();
+        say("Считываю чеки " + storeName() + (period.isEmpty() ? "" : ": " + period) + "…");
         showBrowser();
         web.loadUrl(historyUrl());
         scheduleTick(1100);
@@ -166,7 +168,12 @@ abstract class StoreActivity extends Activity {
     }
 
     private void processHistory(JSONObject data) {
-        if (data.optBoolean("preparing")) { say("Подготавливаю историю " + storeName() + "…"); scheduleTick(1200); return; }
+        if (data.optBoolean("preparing")) {
+            String period = historyPeriodLabel();
+            say("Подготавливаю историю " + storeName() + (period.isEmpty() ? "" : ": " + period) + "…");
+            scheduleTick(1200);
+            return;
+        }
         if (!data.optBoolean("ready")) { scheduleTick(900); return; }
         int count = data.optInt("count");
         if (data.optBoolean("more")) {
@@ -183,7 +190,8 @@ abstract class StoreActivity extends Activity {
         }
         if (targetIndex >= receiptCount) { finishHistoryPeriod(); return; }
         phase = Phase.DETAIL;
-        say("Чек " + (targetIndex + 1) + " из " + receiptCount + "…");
+        String period = historyPeriodLabel();
+        say((period.isEmpty() ? "" : period + ": ") + "чек " + (targetIndex + 1) + " из " + receiptCount + "…");
         web.evaluateJavascript(openReceiptScript(targetIndex), null);
         scheduleTick(1000);
     }
@@ -211,7 +219,7 @@ abstract class StoreActivity extends Activity {
             targetIndex = -1;
             receiptCount = 0;
             attempts = 0;
-            say("Загружаю предыдущий месяц " + storeName() + "…");
+            say("Загружаю " + historyPeriodLabel() + "…");
             web.loadUrl(historyUrl());
             scheduleTick(1100);
         } else {
