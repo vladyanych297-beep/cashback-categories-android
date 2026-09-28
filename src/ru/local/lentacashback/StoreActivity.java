@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.HashSet;
 import java.util.Set;
+import java.time.LocalDate;
 
 abstract class StoreActivity extends Activity {
     private enum Phase { IDLE, HISTORY, DETAIL, CATEGORIES }
@@ -62,6 +63,9 @@ abstract class StoreActivity extends Activity {
     protected void resetHistoryPeriods() {}
     protected boolean advanceHistoryPeriod() { return false; }
     protected String historyPeriodLabel() { return ""; }
+    protected LocalDate analysisStartDate() { return LocalDate.now().minusMonths(3); }
+    protected String analysisPeriodLabel() { return "последние 3 месяца"; }
+    protected boolean includeReceipt(JSONObject receipt) { return true; }
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -142,6 +146,8 @@ abstract class StoreActivity extends Activity {
 
     private void startSync() {
         resetHistoryPeriods();
+        receipts = deduplicateReceipts(receipts);
+        getSharedPreferences(storageName(), MODE_PRIVATE).edit().putString("receipts", receipts.toString()).apply();
         phase = Phase.HISTORY;
         targetIndex = -1;
         receiptCount = 0;
@@ -204,7 +210,7 @@ abstract class StoreActivity extends Activity {
             JSONObject receipt = receipts.optJSONObject(i);
             if (receipt != null && id.equals(receiptKey(receipt))) { exists = true; break; }
         }
-        if (!exists) receipts.put(data);
+        if (!exists && includeReceipt(data)) receipts.put(data);
         getSharedPreferences(storageName(), MODE_PRIVATE).edit().putString("receipts", receipts.toString()).apply();
         targetIndex++;
         attempts = 0;
@@ -255,7 +261,7 @@ abstract class StoreActivity extends Activity {
 
     private JSONArray recommendedNames() {
         JSONArray names = new JSONArray();
-        List<RecommendationEngine.Recommendation> ranked = RecommendationEngine.rankMonths(receipts, categories, 3);
+        List<RecommendationEngine.Recommendation> ranked = RecommendationEngine.rankBetween(receipts, categories, analysisStartDate(), LocalDate.now());
         for (RecommendationEngine.Recommendation recommendation : ranked) {
             if (names.length() >= 5 || recommendation.spend <= 0) break;
             names.put(recommendation.name);
@@ -291,12 +297,12 @@ abstract class StoreActivity extends Activity {
         addText("Данные этого магазина хранятся отдельно и только на телефоне.", 14, false);
         addText("Сохранено чеков: " + receipts.length() + ". Категорий: " + categories.length() + ".", 15, false);
         if (!categoryMonth.isEmpty()) addText(categoryMonth, 16, true);
-        List<RecommendationEngine.Recommendation> ranked = RecommendationEngine.rankMonths(receipts, categories, 3);
+        List<RecommendationEngine.Recommendation> ranked = RecommendationEngine.rankBetween(receipts, categories, analysisStartDate(), LocalDate.now());
         int shown = 0;
         for (RecommendationEngine.Recommendation r : ranked) {
             if (shown >= 5 || r.spend <= 0) break;
             shown++;
-            addText(shown + ". " + r.name + " — " + format(r.spend) + " ₽ за последние 3 месяца", 17, true);
+            addText(shown + ". " + r.name + " — " + format(r.spend) + " ₽ за " + analysisPeriodLabel(), 17, true);
             addText("Ставка " + format(r.rate) + "% · ожидаемый кешбэк ≈ " + format(r.score) + " ₽ · позиций: " + r.items, 13, false);
         }
         if (shown == 0) addText("Пока нет данных для рекомендации. Войдите и обновите историю.", 16, false);
@@ -336,7 +342,7 @@ abstract class StoreActivity extends Activity {
         Set<String> keys = new HashSet<>();
         for (int i = 0; i < source.length(); i++) {
             JSONObject receipt = source.optJSONObject(i);
-            if (receipt == null) continue;
+            if (receipt == null || !includeReceipt(receipt)) continue;
             String key = receiptKey(receipt);
             if (keys.add(key)) unique.put(receipt);
         }

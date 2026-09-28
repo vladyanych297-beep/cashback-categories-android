@@ -5,6 +5,7 @@ import java.time.LocalDate;
 
 public final class PyaterochkaActivity extends StoreActivity {
     private int historyPeriod;
+    private PyaterochkaHistoryWindow historyWindow = new PyaterochkaHistoryWindow(LocalDate.now());
     private static final String HISTORY_JS = "(function(){__PERIOD_PREP__" +
             "var text=document.body?document.body.innerText:'';" +
             "var close=Array.from(document.querySelectorAll('button')).find(function(b){return b.innerText.trim()==='Закрыть'});" +
@@ -22,7 +23,7 @@ public final class PyaterochkaActivity extends StoreActivity {
             "var m=mm.length?mm[mm.length-1]:null;return{name:n.innerText.trim(),paid:m?Number(m[1].replace(/\\s/g,''))+Number(m[2])/100:0}}).filter(function(x){return x.name});" +
             "var dm=text.match(/([0-9]{1,2})\\s+(ЯНВ|ФЕВ|МАР|АПР|МАЙ|ИЮН|ИЮЛ|АВГ|СЕНТ|ОКТ|НОЯ|ДЕК)[^0-9]/);" +
             "var months={ЯНВ:1,ФЕВ:2,МАР:3,АПР:4,МАЙ:5,ИЮН:6,ИЮЛ:7,АВГ:8,СЕНТ:9,ОКТ:10,НОЯ:11,ДЕК:12};" +
-            "var now=new Date(),mo=dm?months[dm[2]]:0,yr=now.getFullYear();if(mo>now.getMonth()+1)yr--;" +
+            "var mo=dm?months[dm[2]]:0,yr=__HISTORY_YEAR__;" +
             "var date=dm?yr+'-'+String(mo).padStart(2,'0')+'-'+String(Number(dm[1])).padStart(2,'0'):'';" +
             "var receiptId=(new URL(location.href)).searchParams.get('popup_id')||location.href;" +
             "return JSON.stringify({ready:location.href.indexOf('receiptsAndPointsDetailsPopup')>=0&&items.length>0,url:'pyaterochka:'+receiptId,date:date,items:items," +
@@ -44,21 +45,29 @@ public final class PyaterochkaActivity extends StoreActivity {
     @Override protected String historyUrl() {
         return "https://x5club.ru/lk/history";
     }
-    @Override protected void resetHistoryPeriods() { historyPeriod = 0; }
+    @Override protected void resetHistoryPeriods() {
+        historyPeriod = 0;
+        historyWindow = new PyaterochkaHistoryWindow(LocalDate.now());
+    }
+    @Override protected LocalDate analysisStartDate() { return new PyaterochkaHistoryWindow(LocalDate.now()).start; }
+    @Override protected String analysisPeriodLabel() { return "последние 100 дней"; }
+    @Override protected boolean includeReceipt(org.json.JSONObject receipt) {
+        return historyWindow.contains(receipt.optString("date"));
+    }
     @Override protected boolean advanceHistoryPeriod() {
         historyPeriod++;
-        return historyPeriod < 3;
+        return historyPeriod < historyWindow.monthCount;
     }
     @Override protected String historyPeriodLabel() {
         String[] names = {"январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"};
-        LocalDate target = LocalDate.now().minusMonths(historyPeriod);
-        return names[target.getMonthValue() - 1] + " — месяц " + (historyPeriod + 1) + " из 3";
+        LocalDate target = historyWindow.month(historyPeriod);
+        return names[target.getMonthValue() - 1] + " — месяц " + (historyPeriod + 1) + " из " + historyWindow.monthCount + " (100 дней)";
     }
     @Override protected String categoriesUrl() { return "https://5ka.ru/special-offers/"; }
     @Override protected String historyScript() {
         String[] full = {"январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"};
         String[] shortNames = {"Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сент", "Окт", "Ноя", "Дек"};
-        LocalDate target = LocalDate.now().minusMonths(historyPeriod);
+        LocalDate target = historyWindow.month(historyPeriod);
         String targetFull = full[target.getMonthValue() - 1] + " " + target.getYear();
         String targetShort = shortNames[target.getMonthValue() - 1];
         String prepare =
@@ -74,7 +83,9 @@ public final class PyaterochkaActivity extends StoreActivity {
                 "if(selector&&(selector.getAttribute('aria-label')||'').indexOf(targetShort)<0){selector.click();return JSON.stringify({ready:false,preparing:true})}";
         return HISTORY_JS.replace("__PERIOD_PREP__", prepare);
     }
-    @Override protected String detailScript() { return DETAIL_JS; }
+    @Override protected String detailScript() {
+        return DETAIL_JS.replace("__HISTORY_YEAR__", String.valueOf(historyWindow.month(historyPeriod).getYear()));
+    }
     @Override protected String categoriesScript() { return CATEGORIES_JS; }
     @Override protected String applyRecommendationsScript(String namesJson) {
         return "(function(names){" +

@@ -99,6 +99,10 @@ public final class RecommendationEngine {
     }
 
     private static List<Recommendation> rankSince(JSONArray receipts, JSONArray categories, LocalDate cutoff) {
+        return rankBetween(receipts, categories, cutoff, LocalDate.now());
+    }
+
+    public static List<Recommendation> rankBetween(JSONArray receipts, JSONArray categories, LocalDate cutoff, LocalDate end) {
         List<Recommendation> result = new ArrayList<>();
         for (int c = 0; c < categories.length(); c++) {
             JSONObject category = categories.optJSONObject(c);
@@ -112,7 +116,8 @@ public final class RecommendationEngine {
                 JSONObject receipt = receipts.optJSONObject(r);
                 if (receipt == null) continue;
                 try {
-                    if (LocalDate.parse(receipt.optString("date")).isBefore(cutoff)) continue;
+                    LocalDate date = LocalDate.parse(receipt.optString("date"));
+                    if (date.isBefore(cutoff) || date.isAfter(end)) continue;
                 } catch (Exception invalidDate) { continue; }
                 JSONArray items = receipt.optJSONArray("items");
                 if (items == null) continue;
