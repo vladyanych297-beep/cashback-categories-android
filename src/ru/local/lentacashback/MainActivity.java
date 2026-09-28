@@ -12,6 +12,9 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 public final class MainActivity extends Activity {
+    private AppUpdater updater;
+    private TextView updateStatus;
+
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -29,11 +32,30 @@ public final class MainActivity extends Activity {
         setContentView(scroll);
         addText(root, "Категории кешбэка", 27, Color.rgb(15, 44, 88));
         addText(root, "Каждый магазин работает автономно: отдельный вход, история покупок, категории и рекомендации.", 15, Color.rgb(70, 78, 91));
+        updateStatus = addText(root, "Проверяю обновления…", 13, Color.rgb(15, 68, 135));
         addStore(root, "Лента", "Чеки и категории Ленты", Color.rgb(0, 78, 170), LentaActivity.class);
         addStore(root, "Магнит", "История операций и категории Магнит Плюс", Color.rgb(218, 31, 38), MagnitActivity.class);
         addStore(root, "Пятёрочка", "Чеки X5 Клуба и персональные предложения", Color.rgb(22, 145, 72), PyaterochkaActivity.class);
         addText(root, "Неофициальное приложение. Не связано с торговыми сетями.", 12, Color.rgb(100, 105, 115));
         addText(root, "© 2026 ESI.Company", 12, Color.rgb(100, 105, 115));
+        updater = new AppUpdater(this);
+        updater.handleInstallStatus(getIntent());
+        updater.checkAtLaunch();
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (updater != null) updater.handleInstallStatus(intent);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (updater != null) updater.onResume();
+    }
+
+    void showUpdateStatus(String text) {
+        if (updateStatus != null) updateStatus.setText(text);
     }
 
     private void addStore(LinearLayout root, String title, String subtitle, int color, Class<?> target) {
@@ -60,13 +82,14 @@ public final class MainActivity extends Activity {
         card.addView(open, p);
     }
 
-    private void addText(LinearLayout root, String text, int size, int color) {
+    private TextView addText(LinearLayout root, String text, int size, int color) {
         TextView view = new TextView(this);
         view.setText(text);
         view.setTextSize(size);
         view.setTextColor(color);
         view.setPadding(0, dp(6), 0, dp(4));
         root.addView(view, new LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return view;
     }
 
     private int dp(int value) { return (int)(value * getResources().getDisplayMetrics().density + .5f); }

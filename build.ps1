@@ -13,6 +13,7 @@ $signingDir = Join-Path $env:USERPROFILE '.android'
 $debugKeyStore = Join-Path $signingDir 'debug.keystore'
 $releaseKeyStore = Join-Path $signingDir 'esi-lenta-release.p12'
 $releasePasswordFile = Join-Path $signingDir 'esi-lenta-release.password'
+$signingLineage = Join-Path $signingDir 'esi-lenta-signing-lineage'
 $releaseAlias = 'esi-lenta-release'
 $manifestText = [System.IO.File]::ReadAllText((Join-Path $projectDir 'AndroidManifest.xml'), [System.Text.Encoding]::UTF8)
 $versionMatch = [regex]::Match($manifestText, 'android:versionName="([^"]+)"')
@@ -23,7 +24,7 @@ foreach ($required in @($androidJar, (Join-Path $toolsDir 'aapt2.exe'), (Join-Pa
     if (-not (Test-Path -LiteralPath $required)) { throw "Missing build dependency: $required" }
 }
 if ($Release) {
-    foreach ($required in @($releaseKeyStore, $releasePasswordFile)) {
+    foreach ($required in @($debugKeyStore, $releaseKeyStore, $releasePasswordFile, $signingLineage)) {
         if (-not (Test-Path -LiteralPath $required)) { throw "Missing release signing file: $required" }
     }
 } elseif (-not (Test-Path -LiteralPath $debugKeyStore)) {
@@ -72,7 +73,11 @@ if ($Release) {
     $outputApk = Join-Path $distDir "lenta-cashback-$versionName.apk"
     try {
         $env:LENTA_RELEASE_SIGNING_PASSWORD = [System.IO.File]::ReadAllText($releasePasswordFile, [System.Text.Encoding]::UTF8).Trim()
-        & (Join-Path $toolsDir 'apksigner.bat') sign --ks $releaseKeyStore --ks-type PKCS12 --ks-key-alias $releaseAlias --ks-pass 'env:LENTA_RELEASE_SIGNING_PASSWORD' --key-pass 'env:LENTA_RELEASE_SIGNING_PASSWORD' --out $outputApk (Join-Path $buildDir 'aligned.apk')
+        & (Join-Path $toolsDir 'apksigner.bat') sign `
+            --ks $debugKeyStore --ks-key-alias androiddebugkey --ks-pass 'pass:android' --key-pass 'pass:android' `
+            --next-signer --ks $releaseKeyStore --ks-type PKCS12 --ks-key-alias $releaseAlias --ks-pass 'env:LENTA_RELEASE_SIGNING_PASSWORD' --key-pass 'env:LENTA_RELEASE_SIGNING_PASSWORD' `
+            --lineage $signingLineage --rotation-min-sdk-version 33 `
+            --out $outputApk (Join-Path $buildDir 'aligned.apk')
         if ($LASTEXITCODE -ne 0) { throw 'Release APK signing failed' }
     } finally {
         [System.Environment]::SetEnvironmentVariable('LENTA_RELEASE_SIGNING_PASSWORD', $null, 'Process')
