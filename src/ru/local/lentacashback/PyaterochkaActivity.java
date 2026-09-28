@@ -4,7 +4,8 @@ import android.graphics.Color;
 import java.time.LocalDate;
 
 public final class PyaterochkaActivity extends StoreActivity {
-    private static final String HISTORY_JS = "(function(){" +
+    private int historyPeriod;
+    private static final String HISTORY_JS = "(function(){__PERIOD_PREP__" +
             "var text=document.body?document.body.innerText:'';" +
             "var close=Array.from(document.querySelectorAll('button')).find(function(b){return b.innerText.trim()==='Закрыть'});" +
             "if(close&&text.indexOf('Важные новости кешбэка')>=0){close.click();return JSON.stringify({ready:false,preparing:true})}" +
@@ -41,12 +42,33 @@ public final class PyaterochkaActivity extends StoreActivity {
     @Override protected String storageName() { return "store_pyaterochka_v1"; }
     @Override protected String loginUrl() { return "https://x5club.ru/lk"; }
     @Override protected String historyUrl() {
-        LocalDate end = LocalDate.now();
-        LocalDate start = end.minusMonths(3);
-        return "https://x5club.ru/lk/history?page=0&startDate=" + start + "&endDate=" + end + "&codeTc=all";
+        return "https://x5club.ru/lk/history";
+    }
+    @Override protected void resetHistoryPeriods() { historyPeriod = 0; }
+    @Override protected boolean advanceHistoryPeriod() {
+        historyPeriod++;
+        return historyPeriod < 3;
     }
     @Override protected String categoriesUrl() { return "https://5ka.ru/special-offers/"; }
-    @Override protected String historyScript() { return HISTORY_JS; }
+    @Override protected String historyScript() {
+        String[] full = {"январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"};
+        String[] shortNames = {"Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сент", "Окт", "Ноя", "Дек"};
+        LocalDate target = LocalDate.now().minusMonths(historyPeriod);
+        String targetFull = full[target.getMonthValue() - 1] + " " + target.getYear();
+        String targetShort = shortNames[target.getMonthValue() - 1];
+        String prepare =
+                "var targetFull='" + targetFull + "',targetShort='" + targetShort + "';" +
+                "var selector=document.querySelector('[aria-label^=\"Выбрать период\"]');" +
+                "var dialog=document.querySelector('dialog[open]');" +
+                "if(dialog){" +
+                "if(window.__esiChoosing!==targetFull){var label=Array.from(dialog.querySelectorAll('span')).find(function(x){return x.innerText.trim().toLowerCase()===targetFull});" +
+                "var monthButton=label&&label.closest('button');if(monthButton){monthButton.click();window.__esiChoosing=targetFull;return JSON.stringify({ready:false,preparing:true})}}" +
+                "var apply=Array.from(dialog.querySelectorAll('button')).find(function(x){return x.innerText.trim()==='Выбрать'});" +
+                "if(apply){apply.click();window.__esiChoosing='';return JSON.stringify({ready:false,preparing:true})}" +
+                "return JSON.stringify({ready:false,preparing:true})}" +
+                "if(selector&&(selector.getAttribute('aria-label')||'').indexOf(targetShort)<0){selector.click();return JSON.stringify({ready:false,preparing:true})}";
+        return HISTORY_JS.replace("__PERIOD_PREP__", prepare);
+    }
     @Override protected String detailScript() { return DETAIL_JS; }
     @Override protected String categoriesScript() { return CATEGORIES_JS; }
     @Override protected String applyRecommendationsScript(String namesJson) {

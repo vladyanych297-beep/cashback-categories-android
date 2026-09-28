@@ -59,6 +59,8 @@ abstract class StoreActivity extends Activity {
     protected abstract String openReceiptScript(int index);
     protected abstract String loadMoreScript();
     protected abstract boolean allowedHost(String host);
+    protected void resetHistoryPeriods() {}
+    protected boolean advanceHistoryPeriod() { return false; }
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -138,6 +140,7 @@ abstract class StoreActivity extends Activity {
     }
 
     private void startSync() {
+        resetHistoryPeriods();
         phase = Phase.HISTORY;
         targetIndex = -1;
         receiptCount = 0;
@@ -173,12 +176,12 @@ abstract class StoreActivity extends Activity {
             return;
         }
         if (targetIndex < 0) {
-            if (count == 0) { phase = Phase.IDLE; say("История открыта, но чеки не найдены."); return; }
+            if (count == 0) { finishHistoryPeriod(); return; }
             receiptCount = count;
             targetIndex = 0;
             attempts = 0;
         }
-        if (targetIndex >= receiptCount) { openCategories(); return; }
+        if (targetIndex >= receiptCount) { finishHistoryPeriod(); return; }
         phase = Phase.DETAIL;
         say("Чек " + (targetIndex + 1) + " из " + receiptCount + "…");
         web.evaluateJavascript(openReceiptScript(targetIndex), null);
@@ -198,8 +201,22 @@ abstract class StoreActivity extends Activity {
         targetIndex++;
         attempts = 0;
         phase = Phase.HISTORY;
-        if (targetIndex >= receiptCount) openCategories();
+        if (targetIndex >= receiptCount) finishHistoryPeriod();
         else { web.loadUrl(historyUrl()); scheduleTick(1000); }
+    }
+
+    private void finishHistoryPeriod() {
+        if (advanceHistoryPeriod()) {
+            phase = Phase.HISTORY;
+            targetIndex = -1;
+            receiptCount = 0;
+            attempts = 0;
+            say("Загружаю предыдущий месяц " + storeName() + "…");
+            web.loadUrl(historyUrl());
+            scheduleTick(1100);
+        } else {
+            openCategories();
+        }
     }
 
     private void openCategories() {
