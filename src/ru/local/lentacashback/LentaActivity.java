@@ -430,6 +430,9 @@ public final class LentaActivity extends Activity {
             scheduleTick(1000);
         });
         dashboardBody.addView(select, new LinearLayout.LayoutParams(-1, dp(54)));
+        PurchaseStatisticsView.append(this, dashboardBody, receipts, categories,
+                getSharedPreferences("lenta_purchase_report_v1", MODE_PRIVATE),
+                java.time.LocalDate.now().minusDays(90), java.time.LocalDate.now());
         addText("Неофициальное приложение. Не связано с «Лентой».", 12, false);
         addText("© 2026 ESI.Company", 12, false);
     }

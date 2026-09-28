@@ -319,6 +319,8 @@ abstract class StoreActivity extends Activity {
             scheduleTick(1000);
         });
         dashboardBody.addView(apply, new LinearLayout.LayoutParams(-1, dp(54)));
+        PurchaseStatisticsView.append(this, dashboardBody, receipts, categories,
+                getSharedPreferences(storageName(), MODE_PRIVATE), analysisStartDate(), LocalDate.now());
         addText("© 2026 ESI.Company", 12, false);
     }
 
