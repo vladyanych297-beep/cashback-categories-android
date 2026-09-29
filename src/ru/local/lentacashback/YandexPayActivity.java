@@ -212,7 +212,7 @@ public final class YandexPayActivity extends Activity {
         if (offers == null) offers = new JSONArray();
         period = data.optString("month");
         limit = Math.max(1, Math.min(12, data.optInt("limit", 5)));
-        prefs().edit().putString("offers", offers.toString()).putString("period", period).putInt("limit", limit).apply();
+        prefs().edit().putString("offers", offers.toString()).putString("period", period).putInt("limit", limit).putString("categories_checked", LocalDate.now().toString()).apply();
         phase = Phase.IDLE;
         say("Готово: покупок " + operations.size() + ", доступных категорий " + offers.length() + "."
                 + (incompleteHistory ? " У части операций не прочитана дата; история неполная." : ""));
@@ -252,7 +252,8 @@ public final class YandexPayActivity extends Activity {
         for (JSONObject row : operations.values()) parsed.add(new YandexPayEngine.Operation(row.optString("id"), row.optString("date"),
                 row.optString("merchant"), row.optString("category"), row.optLong("cents"), row.optBoolean("cardPay")));
         List<YandexPayEngine.Offer> available = new ArrayList<>();
-        for (int i = 0; i < offers.length(); i++) {
+        boolean fresh = CashbackPeriod.fresh(prefs().getString("categories_checked", ""), period, today);
+        for (int i = 0; fresh && i < offers.length(); i++) {
             JSONObject offer = offers.optJSONObject(i);
             if (offer != null) available.add(new YandexPayEngine.Offer(offer.optString("name"), offer.optDouble("rate"),
                     offer.optString("kind"), offer.optBoolean("cardPay", true), offer.optString("description"), offer.optBoolean("selected")));
@@ -266,6 +267,7 @@ public final class YandexPayActivity extends Activity {
         if (!updated.isEmpty()) text(body, "История обновлена: " + updated, 13, false);
         text(body, "Расчёт по операциям Яндекс Пэй. Пополнения, переводы, снятие наличных и возвраты исключены. Данные хранятся только на телефоне.", 13, false);
         text(body, "Рекомендованные категории", 21, true);
+        if (!fresh) text(body, "Категории требуют обновления для текущего месяца. Старые ставки не используются для рекомендаций.", 15, true);
         int shown = 0;
         for (YandexPayEngine.Recommendation recommendation : report.recommendations) {
             if (shown >= limit || recommendation.estimate() <= 0) continue;
@@ -276,7 +278,7 @@ public final class YandexPayActivity extends Activity {
         if (shown == 0) text(body, "Войдите и обновите покупки и категории для расчёта рекомендаций.", 15, false);
         text(body, "Оценка предполагает выполнение условий категории и не учитывает ограничения и лимиты начисления. Суммы разных предложений могут пересекаться.", 13, false);
         button(body, "Обновить категории", this::startCategories);
-        button(body, "Открыть выбор категорий", () -> { phase = Phase.IDLE; showBrowser(); web.loadUrl(CATEGORIES); say("Проверьте условия и выберите категории на странице Яндекса."); });
+        button(body, "Выбрать и подтвердить на сайте Яндекса", () -> { phase = Phase.IDLE; showBrowser(); web.loadUrl(CATEGORIES); say("Проверьте доступный месяц, условия и подтвердите выбор на странице Яндекса."); });
         text(body, period.isEmpty() ? "Доступные категории" : period, 20, true);
         for (YandexPayEngine.Recommendation recommendation : report.recommendations) {
             YandexPayEngine.Offer offer = recommendation.offer;
@@ -322,4 +324,5 @@ public final class YandexPayActivity extends Activity {
     private int dp(int value) { return (int) (value * getResources().getDisplayMetrics().density + .5f); }
     @Override public void onBackPressed() { if (browserVisible) { phase = Phase.IDLE; showDashboard(); } else super.onBackPressed(); }
     @Override protected void onDestroy() { handler.removeCallbacks(ticker); if (web != null) web.destroy(); super.onDestroy(); }
+    @Override protected void onResume() { super.onResume(); if (body != null && !browserVisible) render(); }
 }

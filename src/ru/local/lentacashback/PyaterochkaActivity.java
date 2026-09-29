@@ -32,6 +32,7 @@ public final class PyaterochkaActivity extends StoreActivity {
     @Override protected String storeName() { return "Пятёрочка"; }
     @Override protected int storeColor() { return Color.rgb(22, 145, 72); }
     @Override protected String storageName() { return "store_pyaterochka_v1"; }
+    @Override protected int requiredCategories(int limit) { return limit; }
     @Override protected String loginUrl() { return "https://x5club.ru/lk"; }
     @Override protected String historyUrl() {
         return "https://x5club.ru/lk/history";
@@ -77,7 +78,11 @@ public final class PyaterochkaActivity extends StoreActivity {
     @Override protected String detailScript() {
         return DETAIL_JS.replace("__HISTORY_YEAR__", String.valueOf(historyWindow.month(historyPeriod).getYear()));
     }
-    @Override protected String categoriesScript() { return rawScript("pyaterochka_categories").replace("__NEXT_MONTH__", new String[]{"Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"}[LocalDate.now().plusMonths(1).getMonthValue() - 1]); }
+    @Override protected String categoriesScript() {
+        String[] names = {"Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"};
+        return rawScript("pyaterochka_categories").replace("__NEXT_MONTH__", names[LocalDate.now().plusMonths(1).getMonthValue() - 1])
+                .replace("__CURRENT_MONTH__", names[LocalDate.now().getMonthValue() - 1]);
+    }
     @Override protected String applyRecommendationsScript(String namesJson) {
         return rawScript("pyaterochka_apply").replace("__NAMES__", namesJson);
     }

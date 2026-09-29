@@ -34,7 +34,7 @@ public final class LentaActivity extends Activity {
     private static final String HISTORY = "https://lenta.com/my-account/order/";
     private static final String CATEGORIES = "https://lenta.com/my-account/loyalty-select/";
     private static final String PREFS = "local_history_v1";
-    private enum Phase { IDLE, HISTORY, DETAIL, CATEGORIES }
+    private enum Phase { IDLE, HISTORY, DETAIL, CATEGORIES, VERIFY }
 
     private final Handler handler = new Handler();
     private Phase phase = Phase.IDLE;
@@ -45,6 +45,10 @@ public final class LentaActivity extends Activity {
     private JSONArray receipts = new JSONArray();
     private JSONArray categories = new JSONArray();
     private String categoryMonth = "";
+    private String categoriesChecked = "", reviewedSignature = "";
+    private java.time.LocalDate reviewedDate;
+    private JSONArray confirmedNames;
+    private boolean reviewRequested;
     private int targetIndex = -1;
     private int receiptCount = 0;
     private int attempts = 0;
@@ -101,6 +105,7 @@ public final class LentaActivity extends Activity {
             receipts = new JSONArray(prefs().getString(PREFS + "_receipts", "[]"));
             categories = new JSONArray(prefs().getString(PREFS + "_categories", "[]"));
             categoryMonth = prefs().getString(PREFS + "_month", "");
+            categoriesChecked = prefs().getString(PREFS + "_checked", "");
         } catch (Exception ignored) {}
         makeUi();
         renderDashboard();
@@ -217,6 +222,7 @@ public final class LentaActivity extends Activity {
     private void say(String message) { status.setText(message); }
 
     private void startSync() {
+        reviewRequested = false;
         phase = Phase.HISTORY;
         targetIndex = -1;
         receiptCount = 0;
@@ -260,6 +266,7 @@ public final class LentaActivity extends Activity {
         else if (phase == Phase.CATEGORIES) evalJson(CATEGORIES_JS, new Result() {
             @Override public void accept(JSONObject data) { processCategories(data); }
         });
+        else if (phase == Phase.VERIFY) evalJson(CATEGORIES_JS, this::verifyConfirmedCategories);
     }
 
     private interface Result { void accept(JSONObject data); }
@@ -361,31 +368,44 @@ public final class LentaActivity extends Activity {
         categories = data.optJSONArray("items");
         if (categories == null) categories = new JSONArray();
         categoryMonth = data.optString("month");
+        categoriesChecked = java.time.LocalDate.now().toString();
         prefs().edit()
                 .putString(PREFS + "_categories", categories.toString())
-                .putString(PREFS + "_month", categoryMonth).apply();
+                .putString(PREFS + "_month", categoryMonth).putString(PREFS + "_checked", categoriesChecked).apply();
         phase = Phase.IDLE;
-        applyRecommendedCategories();
+        say("Готово: рекомендации рассчитаны. Выбор требует вашего подтверждения.");
+        showDashboard();
+        if (reviewRequested) { reviewRequested = false; reviewCategories(); }
     }
 
-    private void applyRecommendedCategories() {
-        JSONArray names = new JSONArray();
-        List<RecommendationEngine.Recommendation> ranked = RecommendationEngine.rank(receipts, categories);
-        for (RecommendationEngine.Recommendation recommendation : ranked) {
-            if (names.length() >= 5 || recommendation.spend <= 0) break;
-            names.put(recommendation.name);
+    private boolean categoriesFresh() { return CashbackPeriod.fresh(categoriesChecked, categoryMonth, java.time.LocalDate.now()); }
+    private void reviewCategories() {
+        if (!categoriesFresh()) { say("Период категорий не определён или устарел. Проверьте доступный период на сайте Ленты."); showBrowser(); return; }
+        reviewedDate = java.time.LocalDate.now();
+        reviewedSignature = CategoryConfirmation.signature(categories, categoryMonth, 5, reviewedDate);
+        CategoryConfirmation.show(this, "Лента", categoryMonth, RecommendationEngine.rank(receipts, categories), 5, 5, names -> {
+            confirmedNames = names; phase = Phase.VERIFY; attempts = 0;
+            say("Проверяю период и условия перед сохранением выбора…"); showBrowser(); scheduleTick(100);
+        });
+    }
+    private void verifyConfirmedCategories(JSONObject data) {
+        if (!data.optBoolean("ready")) { scheduleTick(900); return; }
+        JSONArray current = data.optJSONArray("items");
+        if (current == null || !reviewedDate.equals(java.time.LocalDate.now()) ||
+                !reviewedSignature.equals(CategoryConfirmation.signature(current, data.optString("month"), 5, java.time.LocalDate.now()))) {
+            reviewRequested = true; processCategories(data); return;
         }
-        if (names.length() < 5) {
-            say("Готово: для автоматического выбора Ленты найдено только " + names.length() + " из 5 категорий.");
-            showDashboard();
-            return;
-        }
-        say("Применяю 5 рекомендованных категорий Ленты…");
+        phase = Phase.IDLE; applyRecommendedCategories(confirmedNames);
+    }
+    private void applyRecommendedCategories(JSONArray names) {
+        say("Сохраняю подтверждённые категории Ленты…");
         String script = "(function(names){" +
                 "if(window.__esiLentaApplied)return JSON.stringify({count:0,already:true});window.__esiLentaApplied=true;" +
                 "var norm=function(s){return(s||'').toLowerCase().replace(/\\s+/g,' ').trim()};" +
                 "var cards=Array.from(document.querySelectorAll('.favorites-categories-list-page-category'));var count=0;" +
-                "names.forEach(function(name){var n=norm(name);var card=cards.find(function(e){var m=e.innerText.match(/([0-9]+)%\\s*([^\\n]+)/);return m&&norm(m[2])===n});if(card){card.click();count++}});" +
+                "cards.forEach(function(card){var m=card.innerText.match(/([0-9]+)%\\s*([^\\n]+)/);if(!m)return;var wanted=names.some(function(name){return norm(name)===norm(m[2])});" +
+                "var box=card.querySelector('input[type=checkbox]');var selected=box?box.checked:card.getAttribute('aria-pressed')==='true'||card.getAttribute('aria-selected')==='true'||/(selected|checked)/i.test(card.className||'');" +
+                "if(wanted!==selected)card.click();if(wanted)count++});" +
                 "if(count===5)setTimeout(function(){var b=Array.from(document.querySelectorAll('button')).find(function(x){return /Выбрано\\s*5\\s*\\/\\s*5/.test(x.innerText)});if(b)b.click();" +
                 "setTimeout(function(){var c=Array.from(document.querySelectorAll('button')).find(function(x){return /^(Подтвердить|Сохранить)$/.test(x.innerText.trim())});if(c)c.click()},700)},700);" +
                 "return JSON.stringify({count:count})})(" + names.toString() + ")";
@@ -393,8 +413,8 @@ public final class LentaActivity extends Activity {
         evalJson(script, data -> handler.postDelayed(() -> {
             int count = data.optInt("count");
             say(count == 5
-                    ? "Готово: 5 рекомендованных категорий Ленты выбраны автоматически."
-                    : "Автоматический выбор Ленты недоступен; откройте страницу выбора.");
+                    ? "Подтверждённые категории отправлены на сохранение. Проверьте выбор на сайте Ленты."
+                    : "Не удалось применить выбор; подтвердите категории на странице Ленты.");
             showDashboard();
         }, 2200));
     }
@@ -407,7 +427,9 @@ public final class LentaActivity extends Activity {
         addText("Сохранено чеков: " + receipts.length() + ". Доступно категорий: " + categories.length() + ".", 15, false);
         if (!categoryMonth.isEmpty()) addText(categoryMonth, 16, true);
 
-        List<RecommendationEngine.Recommendation> ranked = RecommendationEngine.rank(receipts, categories);
+        boolean fresh = categoriesFresh();
+        if (!fresh) addText("Категории требуют обновления для текущего месяца. Старые ставки не используются для рекомендаций.", 15, true);
+        List<RecommendationEngine.Recommendation> ranked = RecommendationEngine.rank(receipts, fresh ? categories : new JSONArray());
         int shown = 0;
         for (RecommendationEngine.Recommendation r : ranked) {
             if (shown >= 5 || r.spend <= 0) break;
@@ -416,12 +438,13 @@ public final class LentaActivity extends Activity {
             addText("Ставка " + format(r.rate) + "% · ожидаемый кешбэк ≈ " + format(r.score) + " ₽ · позиций в чеках: " + r.items, 13, false);
         }
         if (shown == 0) addText("Пока нет данных для рекомендации. Откройте «Ленту» и обновите историю.", 16, false);
-        addText("После обновления приложение автоматически выбирает пять рекомендаций в порядке ожидаемой выгоды. На первом уровне начисление идёт по первой категории, на пятом — по всем пяти. История магазина ограничена последними тремя месяцами.", 14, false);
+        addText("Обновление рассчитывает рекомендации. Сохранение выбора выполняется после вашего подтверждения. История магазина ограничена последними тремя месяцами.", 14, false);
 
         Button select = new Button(this);
-        select.setText("Применить рекомендации сейчас");
+        select.setText("Проверить и подтвердить выбор");
         select.setAllCaps(false);
         select.setOnClickListener(v -> {
+            reviewRequested = true;
             phase = Phase.CATEGORIES;
             attempts = 0;
             say("Проверяю доступные категории Ленты…");
@@ -430,7 +453,10 @@ public final class LentaActivity extends Activity {
             scheduleTick(1000);
         });
         dashboardBody.addView(select, new LinearLayout.LayoutParams(-1, dp(54)));
-        PurchaseStatisticsView.append(this, dashboardBody, receipts, categories,
+        Button refresh = new Button(this); refresh.setText("Обновить только категории"); refresh.setAllCaps(false);
+        refresh.setOnClickListener(v -> { reviewRequested = false; showBrowser(); openCategories(); });
+        dashboardBody.addView(refresh, new LinearLayout.LayoutParams(-1, dp(54)));
+        PurchaseStatisticsView.append(this, dashboardBody, receipts, fresh ? categories : new JSONArray(),
                 getSharedPreferences("lenta_purchase_report_v1", MODE_PRIVATE),
                 java.time.LocalDate.now().minusDays(90), java.time.LocalDate.now());
         addText("Неофициальное приложение. Не связано с «Лентой».", 12, false);
@@ -463,4 +489,5 @@ public final class LentaActivity extends Activity {
         if (web != null) web.destroy();
         super.onDestroy();
     }
+    @Override protected void onResume() { super.onResume(); if (!showingBrowser) renderDashboard(); }
 }

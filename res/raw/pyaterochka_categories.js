@@ -21,7 +21,7 @@
     if (items.length) {
         var count = text.match(/Выбер(?:ите|и)\s+(\d+)/i);
         return JSON.stringify({ready: true, items: items, limit: count ? Number(count[1]) : 3,
-            month: 'Категории Пятёрочки — ' + (window.__esiNextMonth ? next : 'доступный период')});
+            month: 'Категории Пятёрочки — ' + (window.__esiNextMonth ? next : '__CURRENT_MONTH__')});
     }
     var open = Array.from(document.querySelectorAll('a,button,[role="button"],span,div')).reverse().find(function (b) {
         return b.innerText.trim() === 'Выбрать' && b.getClientRects().length > 0;
