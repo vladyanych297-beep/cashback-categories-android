@@ -25,8 +25,9 @@ public final class MagnitActivity extends StoreActivity {
             "var cards=Array.from(document.querySelectorAll('.cashback-card'));" +
             "if(!cards.length){var main=document.querySelector('main');var open=main&&Array.from(main.querySelectorAll('button')).find(function(b){return b.innerText.trim()==='Выбрать'});" +
             "if(open&&!window.__esiPickerOpened){window.__esiPickerOpened=true;open.click();return JSON.stringify({ready:false,preparing:true})}};" +
-            "var items=cards.map(function(e){var a=e.innerText.split('\\n').map(function(x){return x.trim()}).filter(Boolean);" +
-            "var rate=(a.join(' ').match(/([0-9]+)%/)||[])[1];return a[0]&&rate?{name:a[0],rate:Number(rate)}:null}).filter(Boolean);" +
+            "var seen={};var items=cards.map(function(e){var a=e.innerText.split('\\n').map(function(x){return x.replace(/\\s+/g,' ').trim()}).filter(Boolean);" +
+            "var rate=(a.join(' ').match(/([0-9]+)%/)||[])[1];var name=a.find(function(x){return !/^[0-9]+%$/.test(x)&&!/подписк/i.test(x)});" +
+            "if(/подписк/i.test(a[0]||'')||!name||!rate||seen[name])return null;seen[name]=true;return {name:name,rate:Number(rate)}}).filter(Boolean);" +
             "var heading=(text.match(/Выберите[^\\n]+категори[^\\n]*/)||[])[0]||'Категории Магнит Плюс';" +
             "return JSON.stringify({ready:items.length>0,month:heading,items:items});" +
             "})()";

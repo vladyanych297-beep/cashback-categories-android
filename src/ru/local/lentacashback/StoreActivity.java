@@ -44,6 +44,7 @@ abstract class StoreActivity extends Activity {
     private int targetIndex = -1;
     private int receiptCount = 0;
     private int attempts = 0;
+    private int categoryLimit = 5;
     private boolean evaluating;
     private boolean showingBrowser;
 
@@ -76,6 +77,7 @@ abstract class StoreActivity extends Activity {
             getSharedPreferences(storageName(), MODE_PRIVATE).edit().putString("receipts", receipts.toString()).apply();
             categories = new JSONArray(getSharedPreferences(storageName(), MODE_PRIVATE).getString("categories", "[]"));
             categoryMonth = getSharedPreferences(storageName(), MODE_PRIVATE).getString("month", "");
+            categoryLimit = getSharedPreferences(storageName(), MODE_PRIVATE).getInt("category_limit", 5);
         } catch (Exception ignored) {}
         makeUi();
         renderDashboard();
@@ -246,7 +248,8 @@ abstract class StoreActivity extends Activity {
         categories = data.optJSONArray("items");
         if (categories == null) categories = new JSONArray();
         categoryMonth = data.optString("month");
-        getSharedPreferences(storageName(), MODE_PRIVATE).edit().putString("categories", categories.toString()).putString("month", categoryMonth).apply();
+        categoryLimit = Math.max(1, Math.min(12, data.optInt("limit", 5)));
+        getSharedPreferences(storageName(), MODE_PRIVATE).edit().putString("categories", categories.toString()).putString("month", categoryMonth).putInt("category_limit", categoryLimit).apply();
         phase = Phase.IDLE;
         JSONArray names = recommendedNames();
         if (names.length() == 0) {
@@ -263,7 +266,7 @@ abstract class StoreActivity extends Activity {
         JSONArray names = new JSONArray();
         List<RecommendationEngine.Recommendation> ranked = RecommendationEngine.rankBetween(receipts, categories, analysisStartDate(), LocalDate.now());
         for (RecommendationEngine.Recommendation recommendation : ranked) {
-            if (names.length() >= 5 || recommendation.spend <= 0) break;
+            if (names.length() >= categoryLimit || recommendation.spend <= 0) break;
             names.put(recommendation.name);
         }
         return names;
@@ -300,7 +303,7 @@ abstract class StoreActivity extends Activity {
         List<RecommendationEngine.Recommendation> ranked = RecommendationEngine.rankBetween(receipts, categories, analysisStartDate(), LocalDate.now());
         int shown = 0;
         for (RecommendationEngine.Recommendation r : ranked) {
-            if (shown >= 5 || r.spend <= 0) break;
+            if (shown >= categoryLimit || r.spend <= 0) break;
             shown++;
             addText(shown + ". " + r.name + " — " + format(r.spend) + " ₽ за " + analysisPeriodLabel(), 17, true);
             addText("Ставка " + format(r.rate) + "% · ожидаемый кешбэк ≈ " + format(r.score) + " ₽ · позиций: " + r.items, 13, false);
@@ -325,6 +328,15 @@ abstract class StoreActivity extends Activity {
     }
 
     private void showBrowser() { showingBrowser = true; dashboard.setVisibility(View.GONE); web.setVisibility(View.VISIBLE); }
+    protected String rawScript(String name) {
+        int id = getResources().getIdentifier(name, "raw", getPackageName());
+        try (java.io.InputStream stream = getResources().openRawResource(id);
+             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            byte[] bytes = new byte[4096]; int read;
+            while ((read = stream.read(bytes)) >= 0) out.write(bytes, 0, read);
+            return new String(out.toByteArray(), "UTF-8");
+        } catch (Exception error) { return "JSON.stringify({ready:false})"; }
+    }
     private void showDashboard() { showingBrowser = false; web.setVisibility(View.GONE); dashboard.setVisibility(View.VISIBLE); renderDashboard(); }
     private void say(String text) { status.setText(text); }
     private void scheduleTick(long delay) { handler.removeCallbacks(ticker); if (phase != Phase.IDLE) handler.postDelayed(ticker, delay); }

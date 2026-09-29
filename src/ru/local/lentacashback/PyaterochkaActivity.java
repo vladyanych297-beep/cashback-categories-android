@@ -29,15 +29,6 @@ public final class PyaterochkaActivity extends StoreActivity {
             "return JSON.stringify({ready:location.href.indexOf('receiptsAndPointsDetailsPopup')>=0&&items.length>0,url:'pyaterochka:'+receiptId,date:date,items:items," +
             "paid:items.reduce(function(a,x){return a+x.paid},0),base:0,saving:0});" +
             "})()";
-    private static final String CATEGORIES_JS = "(function(){" +
-            "var text=document.body?document.body.innerText:'';" +
-            "var links=Array.from(document.querySelectorAll('a[href*=\"/special-offers/\"]'));" +
-            "var items=links.map(function(a){var t=a.innerText.replace(/\\s+/g,' ').trim();var r=t.match(/\\+([0-9]+)%/);" +
-            "var n=t.match(/Баллы за (.+?)(?: от [0-9]| по [0-9]| Активировать|$)/i);return r&&n?{rate:Number(r[1]),name:n[1].trim()}:null}).filter(Boolean);" +
-            "window.__esiOfferPolls=(window.__esiOfferPolls||0)+1;" +
-            "return JSON.stringify({ready:items.length>0||window.__esiOfferPolls>12,month:'Персональные предложения Пятёрочки',items:items});" +
-            "})()";
-
     @Override protected String storeName() { return "Пятёрочка"; }
     @Override protected int storeColor() { return Color.rgb(22, 145, 72); }
     @Override protected String storageName() { return "store_pyaterochka_v1"; }
@@ -63,7 +54,7 @@ public final class PyaterochkaActivity extends StoreActivity {
         LocalDate target = historyWindow.month(historyPeriod);
         return names[target.getMonthValue() - 1] + " — месяц " + (historyPeriod + 1) + " из " + historyWindow.monthCount + " (100 дней)";
     }
-    @Override protected String categoriesUrl() { return "https://5ka.ru/special-offers/"; }
+    @Override protected String categoriesUrl() { return "https://x5club.ru/lk"; }
     @Override protected String historyScript() {
         String[] full = {"январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"};
         String[] shortNames = {"Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сент", "Окт", "Ноя", "Дек"};
@@ -86,14 +77,9 @@ public final class PyaterochkaActivity extends StoreActivity {
     @Override protected String detailScript() {
         return DETAIL_JS.replace("__HISTORY_YEAR__", String.valueOf(historyWindow.month(historyPeriod).getYear()));
     }
-    @Override protected String categoriesScript() { return CATEGORIES_JS; }
+    @Override protected String categoriesScript() { return rawScript("pyaterochka_categories").replace("__NEXT_MONTH__", new String[]{"Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"}[LocalDate.now().plusMonths(1).getMonthValue() - 1]); }
     @Override protected String applyRecommendationsScript(String namesJson) {
-        return "(function(names){" +
-                "var norm=function(s){return(s||'').toLowerCase().replace(/\\s+/g,' ').trim()};var count=0;" +
-                "var links=Array.from(document.querySelectorAll('a[href*=\"/special-offers/\"]'));" +
-                "names.forEach(function(name){var n=norm(name);var link=links.find(function(a){return norm(a.innerText).indexOf(n)>=0});" +
-                "if(!link)return;var b=Array.from(link.querySelectorAll('button,[data-qa=\"special-offers-button\"]')).find(function(x){return x.innerText.trim()==='Активировать'});" +
-                "if(b){b.click();count++}});return JSON.stringify({count:count})})(" + namesJson + ")";
+        return rawScript("pyaterochka_apply").replace("__NAMES__", namesJson);
     }
     @Override protected String openReceiptScript(int index) {
         return "(function(){var a=Array.from(document.querySelectorAll('button')).filter(function(b){return b.innerText.trim().indexOf('Покупка в Пятёрочке')===0});if(a[" + index + "])a[" + index + "].click()})()";

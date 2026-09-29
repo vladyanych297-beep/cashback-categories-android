@@ -15,8 +15,43 @@ final class ProductMatcher {
     // Deliberately conservative: ambiguous products stay unclassified rather than
     // increasing a cashback estimate for a category that may not include them.
     public static boolean matches(String category, String product) {
-        String c = category.toLowerCase(Locale.ROOT);
-        String p = product.trim();
+        String c = normalize(category);
+        String p = normalize(product);
+        if (c.contains("подписк")) return false;
+        if (c.contains("almette")) return starts(p, "сыр.*almette");
+        if (c.contains("fit kit")) return starts(p, "fit\\s*kit");
+        if (c.contains("коломенск")) return starts(p, "вафл.*коломенск");
+        if (c.contains("whiskas")) return starts(p, "(корм.*whiskas|whiskas.*корм)");
+        if (c.contains("felix")) return starts(p, "(корм.*felix|felix.*корм)") && !starts(p, "влажн");
+        if (c.contains("elseve")) return starts(p, "elseve|эльсев");
+        if (c.contains("сьесс") || c.contains("syoss")) return starts(p, "syoss|сьесс|сьес");
+        if (c.contains("лоск")) return starts(p, "(лоск|losk)") && starts(p, "стирк|порошок|капсул|гель");
+        if (c.contains("рутис")) return starts(p, "рутис|rutis");
+        if (c.contains("краски loreal")) return starts(p, "(краска|окрашиван).*l.?oreal");
+        if (c.contains("pampers")) return starts(p, "pampers");
+        if (c.contains("дядя ваня")) return starts(p, "дядя ваня");
+        if (c.contains("chesters")) return starts(p, "chesters");
+        if (c.contains("витамины t.a.b")) return starts(p, "витамин.*t\\.?a\\.?b");
+        if (c.contains("уход за волосами")) return starts(p, "шампун|бальзам.*волос|маск.*волос|кондиционер.*волос|лак.*волос|пенк.*волос");
+        if (c.contains("уход за лицом")) return starts(p, "(крем|маска|сыворотка|тоник|пенка|гель).*лиц|мицелляр");
+        if (c.contains("для уборки")) return starts(p, "(средство|гель|спрей|порошок).*(чист|уборк|мытья|унитаз|посуд)|чистящ|моющ|губк.*посуд");
+        if (c.contains("детские подгузники")) return starts(p, "подгузник|трусики.*дет");
+        if (c.contains("детской гигиены")) return starts(p, "(мыло|шампунь|салфетк|крем).*детск");
+        if (c.contains("каши и пюре для детей")) return starts(p, "(каша|пюре).*(детск|месяц|фрутонян|агуша|гербер)");
+        if (c.equals("мюсли")) return starts(p, "мюсли");
+        if (c.contains("мороженое")) return starts(p, "морожен|пломбир|эскимо|сорбет");
+        if (c.equals("вода")) return starts(p, "^вода ");
+        if (c.contains("пирожки") || c.contains("выпечка и бисквиты")) return starts(p, "^пирож|^булоч|^булка|^круассан|^слойка|^бисквит|^кекс|^ватрушка|^рулет.*бисквит");
+        if (c.equals("жевательная резинка")) return starts(p, "жевательн.*резин|^резинка.*жевательн");
+        if (c.contains("тихие красные вина")) return starts(p, "^вино.*красн") && !starts(p, "игрист|шампан");
+        if (c.contains("сгущенное молоко")) return starts(p, "сгущенн|сгущенк");
+        if (c.equals("ряженка")) return starts(p, "ряженк");
+        if (c.equals("йогурты")) return starts(p, "йогурт");
+        if (c.contains("молочные коктейли") || c.contains("молочные десерты")) return starts(p, "(коктейль|десерт|пудинг).*молоч|молоч.*(коктейль|десерт)");
+        if (c.contains("сезонные ягоды") || c.contains("экзотические фрукты")) return starts(p, "^(клубник|малин|черник|голубик|ежевик|смородин|крыжовник|банан|ананас|манго|киви|папайя|питахайя|маракуйя)");
+        if (c.contains("чипсы") || c.contains("снеки")) return starts(p, "^(чипсы|сухарики|снеки|снэки|попкорн|начос)");
+        if (c.contains("сладкая газированная вода")) return starts(p, "лимонад|напиток.*газирован|^coca.cola|^pepsi|^fanta|^sprite|^добрый.*кола") && !starts(p, "минеральн");
+        if (c.contains("твердое мыло")) return starts(p, "^мыло") && !starts(p, "жидк");
         if (c.contains("violette")) return starts(p, "^Сыр творожный.*Violette");
         if (c.contains("mymuse")) return starts(p, "^(Шампунь|Бальзам|Маска|Кондиционер|Средство).*MYMUSE");
         if (c.contains("marco panatti")) return starts(p, "^Кетчуп.*MARCO PANATTI");
@@ -28,7 +63,7 @@ final class ProductMatcher {
         if (c.contains("кисломолочные напитки")) return starts(p, "^(Кефир|Йогурт питьевой|Айран|Ряженка|Снежок|Тан )");
         if (c.contains("сыры твердые") || c.contains("сыры твёрдые")) return starts(p, "^Сыр ");
         if (c.contains("зефир") || c.contains("пастила")) return starts(p, "^(Зефир|Пастила)");
-        if (c.contains("соки") || c.contains("нектары") || c.contains("морсы")) return starts(p, "^(Сок |Нектар|Морс)");
+        if (c.contains("соки") || c.contains("нектары") || c.contains("морсы")) return starts(p, "^(Сок |Нектар|Морс)") || (c.contains("холодный чай") && starts(p, "чай.*холодн|напиток.*чай"));
         if (c.equals("лимонады")) return starts(p, "^(Лимонад|Напиток газированный)");
         if (c.contains("крупы") || c.contains("бобовые")) return starts(p, "^(Крупа|Гречка|Рис |Горох|Фасоль|Чечевица)");
         if (c.contains("свежие яблоки")) return starts(p, "^Яблок");
@@ -39,7 +74,7 @@ final class ProductMatcher {
         if (c.contains("цитрусовые")) return starts(p, "^(Апельсин|Мандарин|Лимон|Грейпфрут|Помело)");
         if (c.contains("свежие огурцы")) return starts(p, "^Огурц");
         if (c.contains("lenor")) return starts(p, "^(Кондиционер|Ополаскиватель).*LENOR");
-        if (c.contains("персил")) return starts(p, "^(Гель|Порошок|Капсулы).*ПЕРСИЛ");
+        if (c.contains("персил") || c.contains("persil")) return starts(p, "(персил|persil)") && starts(p, "стирк|порошок|капсул|гель");
         if (c.contains("ariel")) return starts(p, "^(Гель|Порошок|Капсулы).*ARIEL");
         if (c.contains("сметана") && c.contains("творог")) return starts(p, "^(Сметана|Творог|Продукт творожный|Десерт творожный)\\b");
         if (c.contains("красота") || c.contains("гигиена")) return starts(p, "^(Шампунь|Гель-шампунь|Бальзам для губ|Крем-уход|Дезодорант|Зубная|Диски ватные|Палочки ватные|Прокладки|Жидкое .*мыло|Спрей солнцезащитный)\\b");
@@ -65,6 +100,11 @@ final class ProductMatcher {
         if (c.equals("кофе, какао")) return starts(p, "^(Кофе|Какао|Напиток кофейный)\\b");
         if (c.equals("чай")) return starts(p, "^Чай ");
         return false;
+    }
+
+    private static String normalize(String value) {
+        return (value == null ? "" : value).toLowerCase(Locale.ROOT).replace('ё', 'е')
+                .replace('\u00a0', ' ').replace('\u202f', ' ').replaceAll("\\s+", " ").trim();
     }
 
 }
