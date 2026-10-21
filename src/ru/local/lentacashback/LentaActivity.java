@@ -56,11 +56,12 @@ public final class LentaActivity extends Activity {
     private String historyDiagnostic = "";
     private boolean evaluating = false;
     private boolean showingBrowser = false;
+    private java.time.LocalDate dashboardDate;
 
     private static final String HISTORY_JS = "(function(){" +
             "var body=document.body?document.body.innerText:'';" +
-            "var tab=Array.from(document.querySelectorAll('[role=tab]')).find(function(e){return e.textContent.trim()==='Магазины'});" +
-            "if(!tab)tab=Array.from(document.querySelectorAll('[role=tablist] button,[role=tablist] a,[role=tablist] span')).find(function(e){return e.textContent.trim()==='Магазины' && e.children.length===0});" +
+            "var tab=Array.from(document.querySelectorAll('[role=tab]')).find(function(e){return ['Магазины','Магазин'].indexOf(e.textContent.trim())>=0});" +
+            "if(!tab)tab=Array.from(document.querySelectorAll('button.segment,[role=tablist] button,[role=tablist] a,[role=tablist] span')).find(function(e){return ['Магазины','Магазин'].indexOf(e.textContent.trim())>=0 && e.children.length===0});" +
             "var shop=tab&&(tab.closest('[role=tab],button,a')||tab);" +
             "var active=!!shop&&(shop.getAttribute('aria-selected')==='true'||shop.getAttribute('aria-current')==='page'||" +
             "shop.getAttribute('data-state')==='active'||/(^|[^a-z])(active|selected)($|[^a-z])/i.test(shop.className||''));" +
@@ -87,7 +88,7 @@ public final class LentaActivity extends Activity {
             "var items=nodes.map(function(n){var a=n.innerText.split('\\n').map(function(s){return s.trim()}).filter(Boolean);" +
             "var last=a[a.length-1]||'';return {name:a[0]||'',paid:parse(last.split('·')[0])}}).filter(function(x){return x.name});" +
             "return JSON.stringify({ready:items.length>0 && text.indexOf('Экономия с Лентой')>=0," +
-            "url:location.href,date:(location.href.match(/20[0-9]{2}-[0-9]{2}-[0-9]{2}/)||[])[0]||''," +
+            "url:location.href.replace('/my-account-mobile/','/my-account/'),date:(location.href.match(/20[0-9]{2}-[0-9]{2}-[0-9]{2}/)||[])[0]||''," +
             "items:items,paid:items.reduce(function(a,x){return a+x.paid},0),base:get('Товары без карты Лента'),saving:get('Экономия с Лентой')});" +
             "})()";
     private static final String CATEGORIES_JS = "(function(){" +
@@ -251,7 +252,7 @@ public final class LentaActivity extends Activity {
             return;
         }
         String url = web.getUrl();
-        if (url == null || !url.startsWith("https://lenta.com/my-account/")) {
+        if (!isAccountUrl(url)) {
             phase = Phase.IDLE;
             say("Завершите вход в Ленту, затем нажмите «Обновить».");
             return;
@@ -267,6 +268,14 @@ public final class LentaActivity extends Activity {
             @Override public void accept(JSONObject data) { processCategories(data); }
         });
         else if (phase == Phase.VERIFY) evalJson(CATEGORIES_JS, this::verifyConfirmedCategories);
+    }
+
+    private static boolean isAccountUrl(String url) {
+        if (url == null) return false;
+        Uri uri = Uri.parse(url);
+        String path = uri.getPath();
+        return "https".equalsIgnoreCase(uri.getScheme()) && "lenta.com".equalsIgnoreCase(uri.getHost())
+                && path != null && (path.startsWith("/my-account/") || path.startsWith("/my-account-mobile/"));
     }
 
     private interface Result { void accept(JSONObject data); }
@@ -421,6 +430,7 @@ public final class LentaActivity extends Activity {
 
     private void renderDashboard() {
         if (dashboardBody == null) return;
+        dashboardDate = java.time.LocalDate.now();
         dashboardBody.removeAllViews();
         addText("Рекомендованные категории — Лента", 23, true);
         addText("Для синхронизации войдите в личный кабинет на странице «Ленты» внутри приложения и нажмите «Обновить». Данные чеков хранятся только на этом телефоне.", 15, false);
@@ -489,5 +499,8 @@ public final class LentaActivity extends Activity {
         if (web != null) web.destroy();
         super.onDestroy();
     }
-    @Override protected void onResume() { super.onResume(); if (!showingBrowser) renderDashboard(); }
+    @Override protected void onResume() {
+        super.onResume();
+        if (!showingBrowser && !java.time.LocalDate.now().equals(dashboardDate)) renderDashboard();
+    }
 }

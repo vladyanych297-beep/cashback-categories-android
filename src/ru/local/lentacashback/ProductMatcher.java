@@ -1,15 +1,29 @@
 package ru.local.lentacashback;
 
 import java.util.Locale;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.Collections;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 final class ProductMatcher {
     private ProductMatcher() {}
 
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+    private static final Map<String, Pattern> RULES = new ConcurrentHashMap<>();
+    private static final Map<String, String> NORMALIZED = Collections.synchronizedMap(
+            new LinkedHashMap<String, String>(256, .75f, true) {
+                @Override protected boolean removeEldestEntry(Map.Entry<String, String> entry) {
+                    return size() > 4096;
+                }
+            });
+
     private static boolean starts(String text, String expression) {
         String unicodeBoundary = "(?=$|[^\\p{L}\\p{N}_])";
-        return Pattern.compile(expression.replace("\\b", unicodeBoundary), Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE)
-                .matcher(text).find();
+        Pattern rule = RULES.computeIfAbsent(expression, key -> Pattern.compile(
+                key.replace("\\b", unicodeBoundary), Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE));
+        return rule.matcher(text).find();
     }
 
     // Deliberately conservative: ambiguous products stay unclassified rather than
@@ -103,8 +117,13 @@ final class ProductMatcher {
     }
 
     private static String normalize(String value) {
-        return (value == null ? "" : value).toLowerCase(Locale.ROOT).replace('ё', 'е')
-                .replace('\u00a0', ' ').replace('\u202f', ' ').replaceAll("\\s+", " ").trim();
+        if (value == null) return "";
+        String cached = NORMALIZED.get(value);
+        if (cached != null) return cached;
+        String result = WHITESPACE.matcher(value.toLowerCase(Locale.ROOT).replace('ё', 'е')
+                .replace('\u00a0', ' ').replace('\u202f', ' ')).replaceAll(" ").trim();
+        NORMALIZED.put(value, result);
+        return result;
     }
 
 }
