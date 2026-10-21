@@ -34,10 +34,11 @@ public final class MainActivity extends Activity {
         addText(root, "Каждый раздел работает автономно: отдельный вход, история покупок, категории и рекомендации.", 15, Color.rgb(70, 78, 91));
         updateStatus = addText(root, "Проверяю обновления…", 13, Color.rgb(15, 68, 135));
         addStore(root, "Лента", "Чеки и категории Ленты", Color.rgb(0, 78, 170), LentaActivity.class);
+        addStore(root, "Яндекс", "Покупки за 100 дней и категории Яндекс Пэй", Color.rgb(35, 35, 40), YandexPayActivity.class);
+        addStore(root, "Т-Банк", "Покупки за 100 дней и категории кэшбэка", Color.rgb(170, 125, 0), TBankActivity.class);
         addStore(root, "Магнит", "История операций и категории Магнит Плюс", Color.rgb(218, 31, 38), MagnitActivity.class);
         addStore(root, "Пятёрочка", "Чеки и категории кешбэка X5 Клуба", Color.rgb(22, 145, 72), PyaterochkaActivity.class);
-        addStore(root, "Яндекс Пэй", "Покупки за 100 дней и категории кешбэка", Color.rgb(35, 35, 40), YandexPayActivity.class);
-        addText(root, "Неофициальное приложение. Не связано с торговыми сетями или Яндексом.", 12, Color.rgb(100, 105, 115));
+        addText(root, "Неофициальное приложение. Не связано с торговыми сетями и банками.", 12, Color.rgb(100, 105, 115));
         addText(root, "© 2026 ESI.Company", 12, Color.rgb(100, 105, 115));
         updater = new AppUpdater(this);
         updater.handleInstallStatus(getIntent());

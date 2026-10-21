@@ -212,7 +212,8 @@ public final class YandexPayActivity extends Activity {
         if (offers == null) offers = new JSONArray();
         period = data.optString("month");
         limit = Math.max(1, Math.min(12, data.optInt("limit", 5)));
-        prefs().edit().putString("offers", offers.toString()).putString("period", period).putInt("limit", limit).putString("categories_checked", LocalDate.now().toString()).apply();
+        prefs().edit().putString("offers", offers.toString()).putString("period", period).putInt("limit", limit)
+                .putBoolean("categories_read_only", data.optBoolean("readOnly")).putString("categories_checked", LocalDate.now().toString()).apply();
         phase = Phase.IDLE;
         say("Готово: покупок " + operations.size() + ", доступных категорий " + offers.length() + "."
                 + (incompleteHistory ? " У части операций не прочитана дата; история неполная." : ""));
@@ -266,7 +267,9 @@ public final class YandexPayActivity extends Activity {
         String updated = prefs().getString("history_updated", "");
         if (!updated.isEmpty()) text(body, "История обновлена: " + updated, 13, false);
         text(body, "Расчёт по операциям Яндекс Пэй. Пополнения, переводы, снятие наличных и возвраты исключены. Данные хранятся только на телефоне.", 13, false);
-        text(body, "Рекомендованные категории", 21, true);
+        boolean readOnly = prefs().getBoolean("categories_read_only", false);
+        text(body, readOnly ? "Действующие категории" : "Рекомендованные категории", 21, true);
+        if (readOnly) text(body, "Показаны уже выбранные категории. Доступность выбора на следующий месяц проверяется на сайте Яндекса.", 14, false);
         if (!fresh) text(body, "Категории требуют обновления для текущего месяца. Старые ставки не используются для рекомендаций.", 15, true);
         int shown = 0;
         for (YandexPayEngine.Recommendation recommendation : report.recommendations) {

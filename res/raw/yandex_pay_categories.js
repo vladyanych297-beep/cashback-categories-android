@@ -1,6 +1,20 @@
 (function () {
     var cards = document.querySelectorAll('[data-test-id="selector-page-list-item"]');
-    if (!cards.length) return JSON.stringify({ready: false});
+    if (!cards.length) {
+        var current = document.querySelector('[data-test-id="current-page-section"]');
+        var heading = document.querySelector('[data-test-id="current-page-header"]');
+        if (!current || !heading) return JSON.stringify({ready:false});
+        var activeChip = document.querySelector('[class*="__activeChip"]');
+        var pay = !activeChip || !/Другие карты/.test(activeChip.innerText);
+        var chosen = Array.from(current.querySelectorAll('li')).map(function(card) {
+            var title = card.querySelector('[class*="__title"]');
+            var rate = card.innerText.match(/([0-9]+(?:[.,][0-9]+)?)\s*%/);
+            return title && rate ? {name:title.innerText.trim(), rate:Number(rate[1].replace(',','.')),
+                kind:'cashback', cardPay:pay, description:'Действующая категория; условия и лимиты смотрите на сайте Яндекса.', selected:true} : null;
+        }).filter(Boolean);
+        return JSON.stringify({ready:chosen.length>0, readOnly:true, month:heading.innerText,
+            limit:chosen.length, items:chosen});
+    }
     var items = [], cardPay = true;
     Array.from(document.querySelectorAll('h2,[data-test-id="selector-page-list-item"]')).forEach(function (e) {
         if (e.tagName === 'H2') { cardPay = !/любого банка/i.test(e.innerText); return; }

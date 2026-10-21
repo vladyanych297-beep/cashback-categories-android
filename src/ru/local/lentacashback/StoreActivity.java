@@ -12,6 +12,7 @@ import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceError;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -44,11 +45,13 @@ abstract class StoreActivity extends Activity {
     private int targetIndex = -1;
     private int receiptCount = 0;
     private int attempts = 0;
+    private int emptyHistoryPolls;
     private int categoryLimit = 5;
     private String categoriesChecked = "", reviewedSignature = "";
     private java.time.LocalDate reviewedDate;
     private JSONArray confirmedNames;
     private boolean reviewRequested;
+    private boolean categoriesReadOnly;
     private boolean evaluating;
     private boolean showingBrowser;
 
@@ -84,6 +87,11 @@ abstract class StoreActivity extends Activity {
             categoryMonth = getSharedPreferences(storageName(), MODE_PRIVATE).getString("month", "");
             categoryLimit = getSharedPreferences(storageName(), MODE_PRIVATE).getInt("category_limit", 5);
             categoriesChecked = getSharedPreferences(storageName(), MODE_PRIVATE).getString("categories_checked", "");
+            categoriesReadOnly = getSharedPreferences(storageName(), MODE_PRIVATE).getBoolean("categories_read_only", false);
+            if (getSharedPreferences(storageName(), MODE_PRIVATE).getInt("categories_schema", 0) < 2) {
+                categoriesChecked = "";
+                categoryMonth = "";
+            }
         } catch (Exception ignored) {}
         makeUi();
         renderDashboard();
@@ -147,6 +155,13 @@ abstract class StoreActivity extends Activity {
                 return true;
             }
             @Override public void onPageFinished(WebView view, String url) { scheduleTick(900); }
+            @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (request.isForMainFrame()) {
+                    phase = Phase.IDLE;
+                    evaluating = false;
+                    say("Не удалось загрузить сайт магазина. Проверьте соединение и нажмите «Обновить». Сохранённые чеки доступны в обзоре.");
+                }
+            }
         });
         root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
         web.setVisibility(View.GONE);
@@ -161,6 +176,7 @@ abstract class StoreActivity extends Activity {
         targetIndex = -1;
         receiptCount = 0;
         attempts = 0;
+        emptyHistoryPolls = 0;
         String period = historyPeriodLabel();
         say("Считываю чеки " + storeName() + (period.isEmpty() ? "" : ": " + period) + "…");
         showBrowser();
@@ -199,12 +215,17 @@ abstract class StoreActivity extends Activity {
             return;
         }
         if (targetIndex < 0) {
-            if (count == 0) { finishHistoryPeriod(); return; }
+            if (count == 0) {
+                if (++emptyHistoryPolls < 5) { scheduleTick(900); return; }
+                finishHistoryPeriod(); return;
+            }
             receiptCount = count;
             targetIndex = 0;
             attempts = 0;
         }
         if (targetIndex >= receiptCount) { finishHistoryPeriod(); return; }
+        // A reopened list can expose only its first batch while the remaining cards hydrate.
+        if (count <= targetIndex) { scheduleTick(900); return; }
         phase = Phase.DETAIL;
         String period = historyPeriodLabel();
         say((period.isEmpty() ? "" : period + ": ") + "чек " + (targetIndex + 1) + " из " + receiptCount + "…");
@@ -235,6 +256,7 @@ abstract class StoreActivity extends Activity {
             targetIndex = -1;
             receiptCount = 0;
             attempts = 0;
+            emptyHistoryPolls = 0;
             say("Загружаю " + historyPeriodLabel() + "…");
             web.loadUrl(historyUrl());
             scheduleTick(1100);
@@ -256,17 +278,21 @@ abstract class StoreActivity extends Activity {
         categories = data.optJSONArray("items");
         if (categories == null) categories = new JSONArray();
         categoryMonth = data.optString("month");
+        categoriesReadOnly = data.optBoolean("readOnly");
         categoryLimit = Math.max(1, Math.min(12, data.optInt("limit", 5)));
         categoriesChecked = LocalDate.now().toString();
+        getSharedPreferences(storageName(), MODE_PRIVATE).edit().putBoolean("categories_read_only", categoriesReadOnly).putInt("categories_schema", 2).apply();
         getSharedPreferences(storageName(), MODE_PRIVATE).edit().putString("categories", categories.toString()).putString("month", categoryMonth).putInt("category_limit", categoryLimit).putString("categories_checked", categoriesChecked).apply();
         phase = Phase.IDLE;
-        say("Готово: " + receipts.length() + " чеков, " + categories.length() + " категорий. Выбор требует вашего подтверждения.");
+        say("Готово: " + receipts.length() + " чеков, " + categories.length() + " категорий. "
+                + (categoriesReadOnly ? "Действующие категории обновлены. Новый выбор пока недоступен." : "Выбор требует вашего подтверждения."));
         showDashboard();
         if (reviewRequested) { reviewRequested = false; reviewCategories(); }
     }
 
     private boolean categoriesFresh() { return CashbackPeriod.fresh(categoriesChecked, categoryMonth, LocalDate.now()); }
     private void reviewCategories() {
+        if (categoriesReadOnly) { say("Магазин показывает уже выбранные категории. Новый выбор пока недоступен; действующие ставки обновлены."); return; }
         if (!categoriesFresh()) { say("Период категорий не определён или устарел. Проверьте доступный период на сайте магазина."); showBrowser(); return; }
         reviewedDate = LocalDate.now();
         reviewedSignature = CategoryConfirmation.signature(categories, categoryMonth, categoryLimit, reviewedDate);
@@ -280,6 +306,7 @@ abstract class StoreActivity extends Activity {
     }
     private void verifyConfirmedCategories(JSONObject data) {
         if (!data.optBoolean("ready")) { scheduleTick(900); return; }
+        if (data.optBoolean("readOnly")) { reviewRequested = true; processCategories(data); return; }
         JSONArray current = data.optJSONArray("items");
         if (current == null || !reviewedDate.equals(LocalDate.now()) ||
                 !reviewedSignature.equals(CategoryConfirmation.signature(current, data.optString("month"), Math.max(1, Math.min(12, data.optInt("limit", 5))), LocalDate.now()))) {
@@ -316,7 +343,7 @@ abstract class StoreActivity extends Activity {
     private void renderDashboard() {
         if (dashboardBody == null) return;
         dashboardBody.removeAllViews();
-        addText("Рекомендованные категории — " + storeName(), 23, true);
+        addText((categoriesReadOnly ? "Действующие категории — " : "Рекомендованные категории — ") + storeName(), 23, true);
         addText("Данные этого магазина хранятся отдельно и только на телефоне.", 14, false);
         addText("Сохранено чеков: " + receipts.length() + ". Категорий: " + categories.length() + ".", 15, false);
         if (!categoryMonth.isEmpty()) addText(categoryMonth, 16, true);
@@ -333,7 +360,7 @@ abstract class StoreActivity extends Activity {
         if (shown == 0) addText("Пока нет данных для рекомендации. Войдите и обновите историю.", 16, false);
         addText("Оценка строится по названиям товаров; точные правила начисления определяет торговая сеть.", 13, false);
         Button apply = new Button(this);
-        apply.setText("Проверить и подтвердить выбор");
+        apply.setText(categoriesReadOnly ? "Проверить доступность выбора" : "Проверить и подтвердить выбор");
         apply.setAllCaps(false);
         apply.setOnClickListener(v -> {
             reviewRequested = true;

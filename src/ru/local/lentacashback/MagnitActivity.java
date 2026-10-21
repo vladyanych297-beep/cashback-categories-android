@@ -28,7 +28,7 @@ public final class MagnitActivity extends StoreActivity {
     @Override protected String categoriesUrl() { return "https://magnit.ru/profile/favorite-categories"; }
     @Override protected String historyScript() { return HISTORY_JS; }
     @Override protected String detailScript() { return DETAIL_JS; }
-    @Override protected String categoriesScript() { return rawScript("magnit_categories").replace("__NEXT_MONTH__", new String[]{"Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"}[java.time.LocalDate.now().plusMonths(1).getMonthValue() - 1]); }
+    @Override protected String categoriesScript() { return rawScript("magnit_categories").replace("__NEXT_MONTH__", new String[]{"Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"}[java.time.LocalDate.now().plusMonths(1).getMonthValue() - 1]).replace("__CURRENT_MONTH__", java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("LLLL yyyy", new java.util.Locale("ru")))); }
     @Override protected String applyRecommendationsScript(String namesJson) {
         return "(function(names){" +
                 "if(window.__esiCategoriesApplied)return JSON.stringify({count:0,already:true});window.__esiCategoriesApplied=true;" +

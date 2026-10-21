@@ -1,12 +1,12 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const code = fs.readFileSync('res/raw/pyaterochka_categories.js', 'utf8').replace('__NEXT_MONTH__', 'Октябрь');
+const code = fs.readFileSync('res/raw/pyaterochka_categories.js', 'utf8').replaceAll('__NEXT_MONTH__', 'Октябрь').replaceAll('__CURRENT_MONTH__', 'Сентябрь');
 const labels = ['Мюсли 30%', 'Almette - натуральный творожный сыр И на товары со скидкой 20%',
     'Вода 16%', 'Йогурты 10%', 'Кешбэк с подпиской 30%', 'Вода 16%'];
 let clicks = 0;
 const buttons = labels.map(innerText => ({innerText}));
-buttons.unshift({innerText: 'Октябрь 3', click: () => clicks++});
+buttons.unshift({innerText: 'Октябрь 3', className:'', click() { clicks++; this.className='text-black'; }});
 const context = {window: {}, document: {body: {innerText: 'Выберите 3'}, querySelectorAll: () => buttons}};
 assert.equal(JSON.parse(vm.runInNewContext(code, context)).ready, false);
 const result = JSON.parse(vm.runInNewContext(code, context));
@@ -16,6 +16,12 @@ assert.equal(result.items.length, 4);
 assert.equal(result.items[1].name, 'Almette - натуральный творожный сыр');
 assert.equal(result.items[1].rate, 20);
 assert.equal(result.month, 'Категории Пятёрочки — Октябрь');
+assert.equal(result.readOnly, false);
+const blockedContext = {window:{__esiNextMonth:true}, document:{body:{innerText:'Возвращайтесь позже. Выбрать категории можно будет с 28 числа'},
+    querySelectorAll:()=>[{innerText:'Сентябрь',className:'text-black'}, ...labels.map(innerText=>({innerText}))]}};
+const blockedResult = JSON.parse(vm.runInNewContext(code, blockedContext));
+assert.equal(blockedResult.month, 'Категории Пятёрочки — Сентябрь');
+assert.equal(blockedResult.readOnly, true);
 let opened = 0;
 const hidden = {innerText: 'Выбрать', getClientRects: () => [], click: () => { throw new Error('Hidden link'); }};
 const visible = {innerText: 'Выбрать', getClientRects: () => [1], click: () => opened++};
