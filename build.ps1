@@ -68,7 +68,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Adding classes.dex failed' }
 if ($LASTEXITCODE -ne 0) { throw 'zipalign failed' }
 
 if ($Release) {
-    $distDir = Join-Path $env:USERPROFILE 'Yandex.Disk\Distrib'
+    $distDir = Join-Path $env:USERPROFILE 'Yandex.Disk\Distrib\RuStore'
     New-Item -ItemType Directory -Path $distDir -Force | Out-Null
     $outputApk = Join-Path $distDir "lenta-cashback-$versionName.apk"
     try {
